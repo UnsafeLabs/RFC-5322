@@ -259,6 +259,11 @@ class TestLexicalTokens:
         r = parse_address('John.Doe <jdoe@example.com>', strict=False)
         assert r.display_name == 'John Doe'
 
+    def test_phrase_dots_between_atoms_rejected_strict(self):
+        """Dots between atoms (obs-phrase) rejected in strict mode."""
+        with pytest.raises(AddressParserError, match='obs-phrase'):
+            parse_address('John.Doe <jdoe@example.com>', strict=True)
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # §3.4  Address Specification

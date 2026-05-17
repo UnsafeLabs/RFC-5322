@@ -546,9 +546,11 @@ class AddressParser:
     def _parse_phrase(self) -> str:
         """phrase = 1*word / obs-phrase
 
-        In strict mode dots between atoms are treated as part of the
-        display-name (attached to the preceding word).  In permissive
-        mode dots are consumed silently (obs-phrase behaviour).
+        In strict mode dots are only allowed when followed by a
+        quoted-string or end-of-phrase (abbreviation style like ``Dr.``).
+        A dot directly between two atoms (e.g. ``John.Doe``) is an
+        obs-phrase production and is rejected.  In permissive mode dots
+        between words are consumed silently.
         """
         words: List[str] = []
         saved = self._pos
@@ -596,10 +598,22 @@ class AddressParser:
             saved2 = self._pos
             self._skip_cfws()
             if self._peek() == ".":
+                dot_pos = self._pos
                 self._consume()
                 if self._strict:
-                    # In strict mode dots are visible display-name
-                    # content — attach to the preceding word.
+                    # In strict mode, a dot directly between two atoms
+                    # is obs-phrase — reject it.  Dots followed by a
+                    # quoted-string or end-of-phrase are tolerated as
+                    # trailing punctuation (e.g. ``Dr.``, ``Jr.``).
+                    saved3 = self._pos
+                    self._skip_cfws()
+                    if self._peek() in _ATEXT:
+                        raise AddressParserError(
+                            f"Dot between atoms in phrase "
+                            f"(obs-phrase) at position {dot_pos}",
+                            pos=dot_pos,
+                        )
+                    self._pos = saved3
                     if words:
                         words[-1] = words[-1] + "."
                 # In permissive mode dots are consumed silently
@@ -690,9 +704,17 @@ class AddressParser:
         display_name = None
 
         if self._peek() != "<":
+            before = self._pos
             try:
                 display_name = self._parse_phrase()
             except AddressParserError:
+                # When the phrase partially consumed input (e.g. an
+                # obs-phrase dot between atoms was rejected in strict
+                # mode) do NOT fall through to bare angle-addr — let
+                # the error propagate so the caller sees the real
+                # reason the input was rejected.
+                if self._pos != before:
+                    raise
                 self._pos = saved
 
         angle = self._parse_angle_addr()
@@ -751,7 +773,8 @@ class AddressParser:
                 f"Expected ':' for group at position {self._pos}",
                 pos=self._pos,
             )
-        self._consume()
+        self._consume()          # ":"
+        saved_after_colon = self._pos
         self._skip_cfws()
 
         group_list: List[RFC5322Address] = []
@@ -765,8 +788,7 @@ class AddressParser:
                 group_list = self._parse_mailbox_list()
             except AddressParserError:
                 if not self._strict:
-                    self._pos = saved + len(display_name) + 1
-                    self._skip_cfws()
+                    self._pos = saved_after_colon
                     self._parse_obs_group_list()
                 else:
                     raise
