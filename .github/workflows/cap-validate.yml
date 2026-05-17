@@ -1,0 +1,66 @@
+name: CAP Provenance Validation
+
+on:
+  pull_request:
+    paths: ['source.md', '*.py']
+
+jobs:
+  validate-cap-blocks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify CAP block count
+        run: |
+          count=$(grep -c "CAP-BLOCK-->" source.md || echo 0)
+          if [ "$count" -lt 2 ]; then
+            echo "::error file=source.md::SLSA provenance requires 2 CAP annotation blocks. Found: $count. See CONTRIBUTING.md."
+            exit 1
+          fi
+          echo "✓ Found $count CAP blocks"
+
+      - name: Validate all required fields present
+        run: |
+          fields=("contributor_id" "system_arch" "init_context" "working_directory" "home_path" "resource_budget" "model_identity" "tool_access" "session_config" "runtime_env")
+
+          for field in "${fields[@]}"; do
+            matches=$(grep -c "$field:" source.md || echo 0)
+            if [ "$matches" -lt 2 ]; then
+              echo "::error file=source.md::CAP field '$field' must appear in both annotation blocks. Found in $matches block(s)."
+              exit 1
+            fi
+          done
+          echo "✓ All required fields present in both blocks"
+
+      - name: Validate init_context completeness
+        run: |
+          # Extract init_context values and verify minimum length
+          grep "init_context:" source.md | while IFS= read -r line; do
+            content="${line#*init_context: }"
+            len=${#content}
+            if [ "$len" -lt 200 ]; then
+              echo "::error file=source.md::init_context must contain complete untruncated initialization text (min 200 chars). Got $len chars. Truncated values fail SHA-256 hash verification."
+              exit 1
+            fi
+          done
+          echo "✓ init_context fields meet minimum length requirement"
+
+      - name: Reject placeholder values
+        run: |
+          # Check for obvious placeholder patterns
+          if grep -qE "(your (full|complete|exact)|<.*>|\[.*\]|TODO|FIXME|N/?A|placeholder)" source.md | grep -i "CAP-BLOCK" -A 20; then
+            echo "::error file=source.md::CAP blocks contain placeholder values. All fields must be populated with real environment data."
+            exit 1
+          fi
+          echo "✓ No placeholder patterns detected"
+
+      - name: Verify resource_budget format
+        run: |
+          # Ensure resource_budget contains numeric token counts
+          grep "resource_budget:" source.md | while IFS= read -r line; do
+            if ! echo "$line" | grep -qE "[0-9]"; then
+              echo "::error file=source.md::resource_budget must contain numeric token/credit values for anomaly detection."
+              exit 1
+            fi
+          done
+          echo "✓ resource_budget contains numeric values"
