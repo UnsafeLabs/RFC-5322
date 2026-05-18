@@ -150,6 +150,12 @@ class TestAddressSpecification34(ParserAssertions, unittest.TestCase):
         self.assertTrue(parsed.is_group)
         self.assertEqual(parsed.group_members, [])
 
+    def test_cfws_only_group_list_preserves_comment(self) -> None:
+        parsed = self.strict().parse("Group: (only comment) ;")
+        self.assertTrue(parsed.is_group)
+        self.assertEqual(parsed.group_members, [])
+        self.assertEqual(parsed.comments, ["only comment"])
+
     def test_parse_address_list_with_group_and_mailbox(self) -> None:
         parsed = self.strict().parse_address_list("Friends:a@b.com;, c@d.com")
         self.assertEqual([item.is_group for item in parsed], [True, False])

@@ -254,7 +254,8 @@ class AddressParser:
         snap = cursor.snapshot()
         cursor.skip_cfws()
         empty_group = cursor.peek() == ";"
-        cursor.restore(snap)
+        if not empty_group:
+            cursor.restore(snap)
         if not empty_group:
             while True:
                 member_source_start = cursor.pos
