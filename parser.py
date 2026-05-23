@@ -101,28 +101,34 @@ class RFC5322Lexer:
         return self.text[start:self.pos]
     
     def extract_comment(self) -> str:
-        """Extract a comment including nested comments."""
+        """Extract a comment including nested comments, processing quoted pairs."""
         if self.peek() != '(':
             return ""
         
         depth = 0
-        start = self.pos
-        content_start = self.pos + 1
+        self.consume()  # Skip opening '('
+        content = []
         
         while self.pos < self.length:
             char = self.consume()
             
             if char == '(':
                 depth += 1
+                content.append(char)
             elif char == ')':
-                depth -= 1
                 if depth == 0:
-                    return self.text[content_start:self.pos - 1]
+                    # End of this comment level
+                    return ''.join(content)
+                depth -= 1
+                content.append(char)
             elif char == '\\' and self.pos < self.length:
-                # Quoted pair inside comment
-                self.consume()
+                # Quoted pair inside comment - keep the escaped character
+                content.append(self.consume())
+            else:
+                content.append(char)
         
-        raise ParseError(f"Unclosed comment starting at position {start}")
+        # If we get here, the comment was not closed
+        raise ParseError(f"Unclosed comment starting at position {self.pos - len(content) - 1}")
     
     def extract_cfws(self) -> Tuple[str, List[str]]:
         """
@@ -389,22 +395,34 @@ class AddressParser:
     
     def _parse_addr_spec(self) -> RFC5322Address:
         """Parse an addr-spec (local-part @ domain)."""
-        # Skip leading CFWS
-        _, comments = self.lexer.extract_cfws()
+        # Skip leading CFWS and collect comments before local-part
+        _, comments_before = self.lexer.extract_cfws()
         
         local_part = self._parse_local_part()
+        
+        # Skip CFWS after local-part and collect comments
+        _, comments_after_local = self.lexer.extract_cfws()
         
         if self.lexer.peek() != '@':
             raise ParseError(f"Expected '@' in addr-spec at position {self.lexer.pos}")
         
         self.lexer.consume()  # Skip '@'
         
+        # Skip CFWS after @ and collect comments
+        _, comments_after_at = self.lexer.extract_cfws()
+        
         domain = self._parse_domain()
+        
+        # Collect trailing comments after domain
+        _, comments_after_domain = self.lexer.extract_cfws()
+        
+        # Combine all comments
+        all_comments = comments_before + comments_after_local + comments_after_at + comments_after_domain
         
         return RFC5322Address(
             local_part=local_part,
             domain=domain,
-            comments=comments
+            comments=all_comments
         )
     
     def _parse_local_part(self) -> str:
@@ -591,23 +609,52 @@ class AddressParser:
         return '.'.join(parts)
     
     def _parse_obs_domain(self) -> str:
-        """Parse obs-domain (atom *('.' atom)) - obsolete form."""
+        """Parse obs-domain (atom *('.' atom)) - obsolete form.
+        
+        Also handles leading dots for obs-domain edge cases.
+        """
         if self.mode != Mode.PERMISSIVE:
             raise ParseError("obs-domain not allowed in strict mode")
         
         parts = []
         
-        # First atom
         self.lexer.skip_fws()
-        parts.append(self.lexer.extract_atom())
+        
+        # Handle leading dot(s) for obs-domain
+        while self.lexer.peek() == '.':
+            parts.append('')  # Empty string represents leading/trailing/consecutive dots
+            self.lexer.consume()
+            self.lexer.skip_fws()
+        
+        # First atom (if any)
+        try:
+            parts.append(self.lexer.extract_atom())
+        except ParseError:
+            if not parts:
+                raise
         
         # Subsequent .atom sequences
         while self.lexer.peek() == '.':
             self.lexer.consume()
             self.lexer.skip_fws()
-            parts.append(self.lexer.extract_atom())
+            try:
+                parts.append(self.lexer.extract_atom())
+            except ParseError:
+                # Trailing dot - add empty part
+                parts.append('')
         
-        return '.'.join(parts)
+        # Join with dots, handling consecutive/leading/trailing dots
+        result = '.'.join(parts)
+        # Clean up consecutive dots that resulted from empty strings
+        while '..' in result:
+            result = result.replace('..', '.')
+        # Handle leading/trailing dots
+        if result.startswith('.'):
+            result = '.' + result.lstrip('.')
+        if result.endswith('.'):
+            result = result.rstrip('.') + '.'
+        
+        return result
     
     def _parse_word(self) -> str:
         """Parse a word (atom / quoted-string)."""
