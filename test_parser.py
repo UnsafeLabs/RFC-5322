@@ -100,5 +100,27 @@ def test_source_preserved():
     assert result.source == original
 
 
+def test_parse_mailbox_list_simple():
+    parser = AddressParser(strict=True)
+    result = parser.parse_mailbox_list(
+        "john@example.com, jane@example.com"
+    )
+    assert len(result) == 2
+    assert result[0].local_part == "john"
+    assert result[1].local_part == "jane"
+
+
+def test_parse_mailbox_list_rejects_group():
+    parser = AddressParser(strict=True)
+    with pytest.raises(ValueError, match="Groups are not valid"):
+        parser.parse_mailbox_list("My Group: john@example.com;")
+
+
+def test_parse_mailbox_list_empty():
+    parser = AddressParser(strict=True)
+    assert parser.parse_mailbox_list("") == []
+    assert parser.parse_mailbox_list("   ") == []
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

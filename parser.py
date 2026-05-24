@@ -282,3 +282,27 @@ class AddressParser:
                     # else skip unparseable
                 # else re-raise
         return result
+
+    def parse_mailbox_list(self, raw: str) -> list[RFC5322Address]:
+        """
+        Parse a comma-separated mailbox-list per §3.4.
+
+        mailbox-list = 1*mailbox *("," mailbox)
+
+        Unlike parse_address_list, this rejects groups — only mailboxes
+        (addr-spec or name-addr forms) are accepted.
+        """
+        if not raw.strip():
+            return []
+        result = []
+        for item in self._split_mailbox_list(raw.strip()):
+            item = item.strip()
+            if not item:
+                continue
+            addr = self.parse(item)
+            if addr.is_group:
+                raise ValueError(
+                    f"Groups are not valid in a mailbox-list: {item!r}"
+                )
+            result.append(addr)
+        return result
