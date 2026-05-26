@@ -15,3 +15,4 @@ Automated tracking of all Clankers PR contributors.
 | eddynguyen981-git | 1 | 2026-05-20T10:20:43.465Z | 2026-05-20T10:20:43.465Z |
 | Ishant5436 | 1 | 2026-05-21T11:17:38.892Z | 2026-05-21T11:17:38.892Z |
 | davidweb3-ctrl | 1 | 2026-05-23T06:57:32.179Z | 2026-05-23T06:57:32.179Z |
+| simisdav55-oss | 1 | 2026-05-26T16:25:52.518Z | 2026-05-26T16:25:52.518Z |
