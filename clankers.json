@@ -12,6 +12,12 @@
     "last_pr": "2026-05-22T03:26:37.774Z"
   },
   {
+    "username": "JirA44",
+    "total_prs": 2,
+    "first_pr": "2026-05-28T11:39:37.698Z",
+    "last_pr": "2026-05-28T12:26:00.984Z"
+  },
+  {
     "username": "MichisGitIsKing",
     "total_prs": 1,
     "first_pr": "2026-05-17T14:46:14.182Z",
@@ -82,11 +88,5 @@
     "total_prs": 1,
     "first_pr": "2026-05-28T08:00:13.792Z",
     "last_pr": "2026-05-28T08:00:13.792Z"
-  },
-  {
-    "username": "JirA44",
-    "total_prs": 1,
-    "first_pr": "2026-05-28T11:39:37.698Z",
-    "last_pr": "2026-05-28T11:39:37.698Z"
   }
 ]
