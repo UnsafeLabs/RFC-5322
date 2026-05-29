@@ -299,38 +299,59 @@ class ParserState:
     def parse_phrase(self, comments: list[str]) -> str:
         start_pos = self.pos
         words = []
-        words.append(self.parse_word(comments))
+        
+        self.parse_cfws_into(comments)
+        c = self.peek_char()
+        if c == '"':
+            w = self.parse_quoted_string_core()
+        else:
+            w = self.parse_atom_core()
+        self.parse_cfws_into(comments)
+        words.append((w, False))
         
         while True:
-            pos_before = self.pos
+            pos_before_cfws = self.pos
             comments_before = list(comments)
             try:
-                if not self.strict and self.match_char('.'):
-                    words.append('.')
-                    continue
-                
                 temp_comments = []
                 self.parse_cfws_into(temp_comments)
+                pos_after_cfws = self.pos
+                
+                has_space = False
+                if pos_after_cfws > pos_before_cfws:
+                    consumed = self.raw[pos_before_cfws:pos_after_cfws]
+                    if any(ch.isspace() for ch in consumed):
+                        has_space = True
+                
                 c = self.peek_char()
-                if c == '"' or self.is_atext(c):
+                if not self.strict and c == '.':
+                    self.consume_char()
+                    words.append(('.', has_space))
+                    continue
+                elif c == '"' or self.is_atext(c):
                     comments.extend(temp_comments)
                     if c == '"':
-                        words.append(self.parse_quoted_string_core())
+                        w = self.parse_quoted_string_core()
                     else:
-                        words.append(self.parse_atom_core())
-                    self.parse_cfws_into(comments)
+                        w = self.parse_atom_core()
+                    words.append((w, has_space))
                 else:
-                    self.pos = pos_before
-                    comments.clear()
-                    comments.extend(comments_before)
+                    self.pos = pos_before_cfws
                     break
             except ValueError:
-                self.pos = pos_before
+                self.pos = pos_before_cfws
                 comments.clear()
                 comments.extend(comments_before)
                 break
                 
-        return self.clean_phrase(start_pos, self.pos)
+        result = ""
+        for w, has_space in words:
+            if has_space:
+                result += " "
+            elif result and w != '.' and not result.endswith('.'):
+                result += " "
+            result += w
+        return result
 
     def parse_local_part(self, comments: list[str]) -> str:
         self.parse_cfws_into(comments)
