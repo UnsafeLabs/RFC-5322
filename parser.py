@@ -532,19 +532,36 @@ class AddressParser:
         quote = False
         bracket = 0
         comment = 0
-        for index in range(start + 1, len(raw)):
+        index = start + 1
+        while index < len(raw):
             char = raw[index]
             if quote:
                 if char == "\\":
+                    index += 2
                     continue
                 if char == '"':
                     quote = False
+                index += 1
                 continue
             if comment:
+                if char == "\\":
+                    index += 2
+                    continue
                 if char == "(":
                     comment += 1
                 elif char == ")":
                     comment -= 1
+                index += 1
+                continue
+            if bracket:
+                if char == "\\":
+                    index += 2
+                    continue
+                if char == "]":
+                    bracket -= 1
+                elif char == "[":
+                    bracket += 1
+                index += 1
                 continue
             if char == '"':
                 quote = True
@@ -552,10 +569,9 @@ class AddressParser:
                 comment = 1
             elif char == "[":
                 bracket += 1
-            elif char == "]" and bracket:
-                bracket -= 1
-            elif char == ">" and not bracket:
+            elif char == ">":
                 return index
+            index += 1
         return -1
 
     def _quoted_end(self, raw: str, start: int) -> int:
